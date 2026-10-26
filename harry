@@ -1,0 +1,140 @@
+-- Roblox 玩家追蹤與跨伺服器傳送器 (修正官方 API Bug 版)
+local TeleportService = game:GetService("TeleportService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- === 1. 建立 GUI 介面 ===
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "UniversalPlayerTrackerGUI_V2"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 300, 0, 180)
+MainFrame.Position = UDim2.new(0.5, -150, 0.4, -90)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.Text = "Roblox 終極玩家追蹤器 V2"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 16
+Title.Font = Enum.Font.SourceSansBold
+Title.BackgroundTransparency = 1
+Title.Parent = MainFrame
+
+local TextBox = Instance.new("TextBox")
+TextBox.Size = UDim2.new(0, 240, 0, 35)
+TextBox.Position = UDim2.new(0.5, -120, 0, 55)
+TextBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+TextBox.PlaceholderText = "請輸入玩家 ID 或 英文名字"
+TextBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+TextBox.Text = ""
+TextBox.TextSize = 14
+TextBox.Font = Enum.Font.SourceSans
+TextBox.BorderSizePixel = 0
+TextBox.Parent = MainFrame
+
+local TextBoxCorner = Instance.new("UICorner")
+TextBoxCorner.CornerRadius = UDim.new(0, 5)
+TextBoxCorner.Parent = TextBox
+
+local TeleportButton = Instance.new("TextButton")
+TeleportButton.Size = UDim2.new(0, 240, 0, 35)
+TeleportButton.Position = UDim2.new(0.5, -120, 0, 105)
+TeleportButton.BackgroundColor3 = Color3.fromRGB(0, 150, 136)
+TeleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+TeleportButton.Text = "開始追蹤並傳送"
+TeleportButton.TextSize = 14
+TeleportButton.Font = Enum.Font.SourceSansBold
+TeleportButton.BorderSizePixel = 0
+TeleportButton.Parent = MainFrame
+
+local ButtonCorner = Instance.new("UICorner")
+ButtonCorner.CornerRadius = UDim.new(0, 5)
+ButtonCorner.Parent = TeleportButton
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(1, 0, 0, 20)
+StatusLabel.Position = UDim2.new(0, 0, 0, 150)
+StatusLabel.Text = "等待輸入..."
+StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+StatusLabel.TextSize = 12
+StatusLabel.Font = Enum.Font.SourceSansItalic
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Parent = MainFrame
+
+
+-- === 2. 核心轉換與跳轉邏輯 (修正版) ===
+TeleportButton.MouseButton1Click:Connect(function()
+    -- 清除前後不小心留下的空白
+    local inputText = string.gsub(TextBox.Text, "^%s*(.-)%s*$", "%1")
+    
+    if inputText == "" then
+        StatusLabel.Text = "❌ 輸入欄位不能為空！"
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        return
+    end
+    
+    StatusLabel.Text = "🔍 正在檢查玩家資訊..."
+    StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+    
+    task.spawn(function()
+        local targetId = tonumber(inputText)
+        
+        -- 如果輸入的不是純數字，嘗試轉換名字
+        if not targetId then
+            local idSuccess, idResult = pcall(function()
+                return Players:GetUserIdFromNameAsync(inputText)
+            end)
+            if idSuccess then
+                targetId = idResult
+            else
+                StatusLabel.Text = "❌ 找不到這個玩家名稱！"
+                StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+                return
+            end
+        end
+        
+        StatusLabel.Text = "🛰️ 正在搜尋該玩家的伺服器..."
+        
+        -- 【關鍵修正】Roblox 最新官方 API 會回傳 5 個參數，必須精準抓取 jobId (第 4 位)
+        local tpSuccess, currentPlaceId, jobId = pcall(function()
+            local success, errorMsg, pId, jId, _ = TeleportService:GetPlayerPlaceInstanceAsync(targetId)
+            if success then
+                return pId, jId
+            else
+                error(errorMsg or "無法取得伺服器實例")
+            end
+        end)
+        
+        if tpSuccess and currentPlaceId and jobId then
+            StatusLabel.Text = "✅ 成功找到伺服器！正在傳送..."
+            StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+            task.wait(0.5)
+            
+            -- 執行傳送
+            local success, err = pcall(function()
+                TeleportService:TeleportToPlaceInstance(currentPlaceId, jobId, LocalPlayer)
+            end)
+            
+            if not success then
+                StatusLabel.Text = "❌ 傳送失敗: API 拒絕請求"
+                StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+                warn(err)
+            end
+        else
+            StatusLabel.Text = "❌ 失敗: 玩家離線或隱私/VIP 限制"
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        end
+    end)
+end)
