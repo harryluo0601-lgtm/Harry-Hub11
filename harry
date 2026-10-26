@@ -1,66 +1,35 @@
--- 【極致零介面·盲開版】自訂按鍵鎖頭 (專治 Xeno 注入完全不跳視窗的 Bug)
+-- === ⚙️ 調整參數設定區 ===
+local HITBOX_SIZE = Vector3.new(15, 15, 15)  -- 【調整大小】預設 15，數字越大方塊越大（例如改成 8, 8, 8 會變小）
+local HITBOX_TRANSPARENCY = 0.6               -- 【調整透明度】0 為完全看不見，0.5 為半透明，1 為完全變紅色（看不到人）
+local HITBOX_COLOR = Color3.fromRGB(255, 0, 0)-- 【調整顏色】目前是發光紅色
+
+-- === 🔒 核心注入邏輯 (請勿修改) ===
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- === ⚙️ 在這裡直接設定你想要的按鍵 ===
-local TOGGLE_KEY = Enum.KeyCode.V   -- [可自行修改] 按一下 V 鍵：開啟或關閉功能
-local AIM_KEY = Enum.KeyCode.Q      -- [可自行修改] 按住 Q 鍵：直接鎖頭
-local FOV_RADIUS = 300              -- [可自行修改] 鎖定範圍半徑
-
--- === 🔒 核心邏輯 (無任何介面) ===
-local AimbotEnabled = false
-local TargetPlayer = nil
-
--- 計算螢幕上最近的玩家
-local function getClosestPlayer()
-    local closestPlayer = nil
-    local shortestDistance = math.huge
-    local mousePosition = UserInputService:GetMouseLocation()
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") and player.Character:FindFirstChildOfClass("Humanoid") and player.Character.Humanoid.Health > 0 then
-            local headPosition, onScreen = Camera:WorldToViewportPoint(player.Character.Head.Position)
-            if onScreen then
-                local distance = (Vector2.new(headPosition.X, headPosition.Y) - mousePosition).Magnitude
-                if distance < shortestDistance and distance <= FOV_RADIUS then
-                    shortestDistance = distance
-                    closestPlayer = player
-                end
-            end
-        end
-    end
-    return closestPlayer
-end
-
--- 監聽總開關 (V 鍵)
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == TOGGLE_KEY then
-        AimbotEnabled = not AimbotEnabled
-        -- 由於沒有介面，利用客戶端控制台列印狀態 (按 F9 可看)
-        print("[鎖頭狀態變更]: " .. (AimbotEnabled and "開啟" or "關閉"))
-    end
-end)
-
--- 每幀刷新追蹤吸附
-RunService.RenderStepped:Connect(function()
-    if not AimbotEnabled then return end
+local function applyHitbox(player)
+    if player == LocalPlayer then return end
     
     pcall(function()
-        -- 檢查玩家是否正按住鎖定鍵 (Q 鍵)
-        if UserInputService:IsKeyDown(AIM_KEY) then
-            if not TargetPlayer or not TargetPlayer.Character or not TargetPlayer.Character:FindFirstChild("Head") or TargetPlayer.Character.Humanoid.Health <= 0 then
-                TargetPlayer = getClosestPlayer()
+        local character = player.Character
+        if character then
+            local root = character:FindFirstChild("HumanoidRootPart")
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            
+            if root and humanoid and humanoid.Health > 0 then
+                root.Size = HITBOX_SIZE
+                root.Transparency = HITBOX_TRANSPARENCY
+                root.Color = HITBOX_COLOR
+                root.Material = Enum.Material.Neon
+                root.CanCollide = false
             end
-
-            if TargetPlayer and TargetPlayer.Character and TargetPlayer.Character:FindFirstChild("Head") then
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, TargetPlayer.Character.Head.Position)
-            end
-        else
-            TargetPlayer = nil
         end
     end)
+end
+
+RunService.RenderStepped:Connect(function()
+    for _, player in ipairs(Players:GetPlayers()) do
+        applyHitbox(player)
+    end
 end)
