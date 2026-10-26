@@ -1,19 +1,22 @@
--- Roblox 鎖頭自訂按鍵系統 (Xeno 注入專用版)
+-- Roblox 鎖頭自訂按鍵系統 (Xeno 專用 - 100% 成功加載介面版)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
 
--- 100% 安全抓取本地玩家，防止注入時因未加載完成而閃退
+-- === 🚀 安全抓取本地玩家與螢幕容器 ===
 local LocalPlayer = Players.LocalPlayer
 if not LocalPlayer then
     Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
     LocalPlayer = Players.LocalPlayer
 end
 
--- 尋找注入安全容器 (優先使用外掛核心 CoreGui，防止被遊戲本身腳本偵測或刪除)
-local CoreGui = game:GetService("CoreGui")
-local TargetContainer = CoreGui:FindFirstChild("RobloxGui") or ScreenGui
+-- 100% 安全等待遊戲的 PlayerGui 加載完成，防止注入時因卡載入而閃退
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 15)
+if not PlayerGui then
+    warn("❌ Xeno 提示: 超時無法獲取 PlayerGui")
+    return
+end
 
 -- === ⚙️ 配置設定 ===
 local Config = {
@@ -26,19 +29,20 @@ local AimbotEnabled = false
 local TargetPlayer = nil
 
 -- === 🎨 1. 建立設定 GUI 介面 ===
-if CoreGui:FindFirstChild("XenoAimbot_Injected") then
-    CoreGui["XenoAimbot_Injected"]:Destroy()
+-- 如果之前執行過，先強制清除舊的，防止重疊與按鍵卡死
+if PlayerGui:FindFirstChild("XenoAimbot_FinalUI") then
+    PlayerGui["XenoAimbot_FinalUI"]:Destroy()
 end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "XenoAimbot_Injected"
+ScreenGui.Name = "XenoAimbot_FinalUI"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = CoreGui
+ScreenGui.Parent = PlayerGui
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 280, 0, 220)
-MainFrame.Position = UDim2.new(0.05, 0, 0.4, -110) -- 靠左側，防止擋住準心
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.Position = UDim2.new(0.05, 0, 0.4, -110) -- 靠螢幕左側，不擋準心
+MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 MainFrame.Active = true
 MainFrame.Draggable = true -- 支援滑鼠拖曳
 MainFrame.Parent = ScreenGui
@@ -49,7 +53,7 @@ UICorner.Parent = MainFrame
 
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 35)
-Title.Text = "🔒 鎖頭自訂按鍵設定 (已注入)"
+Title.Text = "🔒 鎖頭自訂按鍵設定"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 14
 Title.Font = Enum.Font.SourceSansBold
@@ -80,7 +84,7 @@ Label1.Parent = MainFrame
 local ToggleInput = Instance.new("TextBox")
 ToggleInput.Size = UDim2.new(0, 100, 0, 25)
 ToggleInput.Position = UDim2.new(0, 160, 0, 72)
-ToggleInput.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+ToggleInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 ToggleInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleInput.Text = Config.ToggleKey
 ToggleInput.TextSize = 14
@@ -101,7 +105,7 @@ Label2.Parent = MainFrame
 local AimInput = Instance.new("TextBox")
 AimInput.Size = UDim2.new(0, 100, 0, 25)
 AimInput.Position = UDim2.new(0, 160, 0, 112)
-AimInput.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+AimInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 AimInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 AimInput.Text = Config.AimKey
 AimInput.TextSize = 14
@@ -122,7 +126,6 @@ SaveButton.Parent = MainFrame
 local BtnCorner = Instance.new("UICorner")
 BtnCorner.CornerRadius = UDim.new(0, 5)
 BtnCorner.Parent = SaveButton
-
 
 -- === 💾 2. 介面設定套用邏輯 ===
 SaveButton.MouseButton1Click:Connect(function()
@@ -151,7 +154,6 @@ SaveButton.MouseButton1Click:Connect(function()
         SaveButton.BackgroundColor3 = Color3.fromRGB(0, 150, 136)
     end
 end)
-
 
 -- === 🔍 3. 核心鎖頭吸附邏輯 ===
 local function getClosestPlayer()
