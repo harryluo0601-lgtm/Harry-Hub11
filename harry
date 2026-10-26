@@ -3,7 +3,7 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
 local HITBOX_SIZE = Vector3.new(30, 30, 30)
-local HITBOX_TRANSPARENCY = 1
+local HITBOX_TRANSPARENCY = 0.6
 local HITBOX_COLOR = Color3.fromRGB(255, 0, 0)
 
 local function applyHitbox(player)
