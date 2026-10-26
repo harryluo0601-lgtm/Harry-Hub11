@@ -1,13 +1,131 @@
--- === ⚙️ 調整參數設定區 ===
-local HITBOX_SIZE = Vector3.new(15, 15, 15)  -- 【調整大小】預設 15，數字越大方塊越大（例如改成 8, 8, 8 會變小）
-local HITBOX_TRANSPARENCY = 0.6               -- 【調整透明度】0 為完全看不見，0.5 為半透明，1 為完全變紅色（看不到人）
-local HITBOX_COLOR = Color3.fromRGB(255, 0, 0)-- 【調整顏色】目前是發光紅色
-
--- === 🔒 核心注入邏輯 (請勿修改) ===
+-- Roblox 萬用 Hitbox 擴大調整介面 (Xeno 專用防崩潰版)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
+-- 確保加載畫面的螢幕容器
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 15)
+if not PlayerGui then return end
+
+-- === ⚙️ 預設參數與控制變數 ===
+local Settings = {
+    Size = 15,          -- 預設方塊大小
+    Transparency = 0.6 -- 預設透明度 (0.6 代表半透明紅色)
+}
+
+local ExtenderEnabled = true
+
+-- === 🎨 1. 建立輕量化控制介面 ===
+if PlayerGui:FindFirstChild("Xeno_Hitbox_Panel") then
+    PlayerGui["Xeno_Hitbox_Panel"]:Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "Xeno_Hitbox_Panel"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = PlayerGui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 260, 0, 180)
+MainFrame.Position = UDim2.new(0.05, 0, 0.35, 0) -- 靠左側，防止遮擋準心
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.Active = true
+MainFrame.Draggable = true -- 支援滑鼠按住標題拖曳位置
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 35)
+Title.Text = "📐 Hitbox 動態調整面板"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 14
+Title.Font = Enum.Font.SourceSansBold
+Title.BackgroundTransparency = 1
+Title.Parent = MainFrame
+
+-- 控制項 1：方塊大小調整 (直接打數字)
+local LabelSize = Instance.new("TextLabel")
+LabelSize.Size = UDim2.new(0, 120, 0, 30)
+LabelSize.Position = UDim2.new(0, 15, 0, 50)
+LabelSize.Text = "方塊大小 (2-100):"
+LabelSize.TextColor3 = Color3.fromRGB(200, 200, 200)
+LabelSize.TextSize = 14
+LabelSize.TextXAlignment = Enum.TextXAlignment.Left
+LabelSize.BackgroundTransparency = 1
+LabelSize.Parent = MainFrame
+
+local SizeInput = Instance.new("TextBox")
+SizeInput.Size = UDim2.new(0, 90, 0, 25)
+SizeInput.Position = UDim2.new(0, 150, 0, 52)
+SizeInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+SizeInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+SizeInput.Text = tostring(Settings.Size)
+SizeInput.TextSize = 14
+SizeInput.Font = Enum.Font.SourceSansBold
+SizeInput.Parent = MainFrame
+
+-- 控制項 2：透明度調整 (0 為完全透明隱形，1 為完全不透明紅塊)
+local LabelTrans = Instance.new("TextLabel")
+LabelTrans.Size = UDim2.new(0, 120, 0, 30)
+LabelTrans.Position = UDim2.new(0, 15, 0, 90)
+LabelTrans.Text = "透明度 (0 - 1):"
+LabelTrans.TextColor3 = Color3.fromRGB(200, 200, 200)
+LabelTrans.TextSize = 14
+LabelTrans.TextXAlignment = Enum.TextXAlignment.Left
+LabelTrans.BackgroundTransparency = 1
+LabelTrans.Parent = MainFrame
+
+local TransInput = Instance.new("TextBox")
+TransInput.Size = UDim2.new(0, 90, 0, 25)
+TransInput.Position = UDim2.new(0, 150, 0, 92)
+TransInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+TransInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+TransInput.Text = tostring(Settings.Transparency)
+TransInput.TextSize = 14
+TransInput.Font = Enum.Font.SourceSansBold
+TransInput.Parent = MainFrame
+
+-- 應用修改按鈕
+local ApplyButton = Instance.new("TextButton")
+ApplyButton.Size = UDim2.new(0, 230, 0, 35)
+ApplyButton.Position = UDim2.new(0.5, -115, 0, 132)
+ApplyButton.BackgroundColor3 = Color3.fromRGB(0, 150, 136)
+ApplyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ApplyButton.Text = "立即更新 Hitbox 參數"
+ApplyButton.TextSize = 14
+ApplyButton.Font = Enum.Font.SourceSansBold
+ApplyButton.Parent = MainFrame
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(0, 5)
+BtnCorner.Parent = ApplyButton
+
+-- === 💾 2. 介面動態變更邏輯 ===
+ApplyButton.MouseButton1Click:Connect(function()
+    local newSize = tonumber(SizeInput.Text)
+    local newTrans = tonumber(TransInput.Text)
+    
+    if newSize and newSize >= 2 and newSize <= 100 and newTrans and newTrans >= 0 and newTrans <= 1 then
+        Settings.Size = newSize
+        Settings.Transparency = newTrans
+        ApplyButton.Text = "✅ 參數更新成功！"
+        ApplyButton.BackgroundColor3 = Color3.fromRGB(76, 175, 80)
+        task.wait(0.8)
+        ApplyButton.Text = "立即更新 Hitbox 參數"
+        ApplyButton.BackgroundColor3 = Color3.fromRGB(0, 150, 136)
+    else
+        ApplyButton.Text = "❌ 錯誤：請確認數值範圍"
+        ApplyButton.BackgroundColor3 = Color3.fromRGB(244, 67, 54)
+        task.wait(1.2)
+        ApplyButton.Text = "立即更新 Hitbox 參數"
+        ApplyButton.BackgroundColor3 = Color3.fromRGB(0, 150, 136)
+    end
+end)
+
+-- === 🔍 3. 核心 Hitbox 循環放大邏輯 ===
 local function applyHitbox(player)
     if player == LocalPlayer then return end
     
@@ -18,9 +136,10 @@ local function applyHitbox(player)
             local humanoid = character:FindFirstChildOfClass("Humanoid")
             
             if root and humanoid and humanoid.Health > 0 then
-                root.Size = HITBOX_SIZE
-                root.Transparency = HITBOX_TRANSPARENCY
-                root.Color = HITBOX_COLOR
+                -- 動態套用 Settings 變數內部的數值
+                root.Size = Vector3.new(Settings.Size, Settings.Size, Settings.Size)
+                root.Transparency = Settings.Transparency
+                root.Color = Color3.fromRGB(255, 0, 0)
                 root.Material = Enum.Material.Neon
                 root.CanCollide = false
             end
@@ -28,7 +147,13 @@ local function applyHitbox(player)
     end)
 end
 
+-- 背景不斷同步刷新
 RunService.RenderStepped:Connect(function()
+    if not ExtenderEnabled then return end
+    for _, player in ipairs(Players:GetPlayers()) do
+        applyHitbox(player)
+    end
+end)
     for _, player in ipairs(Players:GetPlayers()) do
         applyHitbox(player)
     end
