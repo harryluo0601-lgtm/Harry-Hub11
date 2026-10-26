@@ -1,14 +1,24 @@
--- Roblox 自訂按鍵鎖頭系統 (內建 GUI 設定介面)
+-- Roblox 鎖頭自訂按鍵系統 (Xeno 注入專用版)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
-local LocalPlayer = Players.LocalPlayer
 
--- === ⚙️ 預設配置設定 (可在 UI 內即時修改) ===
+-- 100% 安全抓取本地玩家，防止注入時因未加載完成而閃退
+local LocalPlayer = Players.LocalPlayer
+if not LocalPlayer then
+    Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+    LocalPlayer = Players.LocalPlayer
+end
+
+-- 尋找注入安全容器 (優先使用外掛核心 CoreGui，防止被遊戲本身腳本偵測或刪除)
+local CoreGui = game:GetService("CoreGui")
+local TargetContainer = CoreGui:FindFirstChild("RobloxGui") or ScreenGui
+
+-- === ⚙️ 配置設定 ===
 local Config = {
-    ToggleKey = "V",    -- 預設功能總開關
-    AimKey = "Q",       -- 預設按住鎖頭的按鍵
+    ToggleKey = "V",    -- 預設總開關
+    AimKey = "Q",       -- 預設按住鎖頭
     FOV = 300           -- 鎖定範圍半徑
 }
 
@@ -16,17 +26,21 @@ local AimbotEnabled = false
 local TargetPlayer = nil
 
 -- === 🎨 1. 建立設定 GUI 介面 ===
+if CoreGui:FindFirstChild("XenoAimbot_Injected") then
+    CoreGui["XenoAimbot_Injected"]:Destroy()
+end
+
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AimbotConfigGUI"
+ScreenGui.Name = "XenoAimbot_Injected"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.Parent = CoreGui
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 280, 0, 220)
-MainFrame.Position = UDim2.new(0.1, 0, 0.4, -110) -- 放在偏左側，不擋準心
-MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MainFrame.Position = UDim2.new(0.05, 0, 0.4, -110) -- 靠左側，防止擋住準心
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.Active = true
-MainFrame.Draggable = true
+MainFrame.Draggable = true -- 支援滑鼠拖曳
 MainFrame.Parent = ScreenGui
 
 local UICorner = Instance.new("UICorner")
@@ -35,14 +49,13 @@ UICorner.Parent = MainFrame
 
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 35)
-Title.Text = "🔒 鎖頭自訂按鍵設定"
+Title.Text = "🔒 鎖頭自訂按鍵設定 (已注入)"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 14
 Title.Font = Enum.Font.SourceSansBold
 Title.BackgroundTransparency = 1
 Title.Parent = MainFrame
 
--- 狀態提示字
 local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Size = UDim2.new(1, 0, 0, 25)
 StatusLabel.Position = UDim2.new(0, 0, 0, 35)
@@ -53,7 +66,7 @@ StatusLabel.Font = Enum.Font.SourceSansItalic
 StatusLabel.BackgroundTransparency = 1
 StatusLabel.Parent = MainFrame
 
--- 設定項 1: 總開關按鍵
+-- 設定項 1
 local Label1 = Instance.new("TextLabel")
 Label1.Size = UDim2.new(0, 140, 0, 30)
 Label1.Position = UDim2.new(0, 15, 0, 70)
@@ -67,14 +80,14 @@ Label1.Parent = MainFrame
 local ToggleInput = Instance.new("TextBox")
 ToggleInput.Size = UDim2.new(0, 100, 0, 25)
 ToggleInput.Position = UDim2.new(0, 160, 0, 72)
-ToggleInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+ToggleInput.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 ToggleInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleInput.Text = Config.ToggleKey
 ToggleInput.TextSize = 14
 ToggleInput.Font = Enum.Font.SourceSansBold
 ToggleInput.Parent = MainFrame
 
--- 設定項 2: 按住鎖頭按鍵
+-- 設定項 2
 local Label2 = Instance.new("TextLabel")
 Label2.Size = UDim2.new(0, 140, 0, 30)
 Label2.Position = UDim2.new(0, 15, 0, 110)
@@ -88,14 +101,14 @@ Label2.Parent = MainFrame
 local AimInput = Instance.new("TextBox")
 AimInput.Size = UDim2.new(0, 100, 0, 25)
 AimInput.Position = UDim2.new(0, 160, 0, 112)
-AimInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+AimInput.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 AimInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 AimInput.Text = Config.AimKey
 AimInput.TextSize = 14
 AimInput.Font = Enum.Font.SourceSansBold
 AimInput.Parent = MainFrame
 
--- 儲存設定按鈕
+-- 儲存按鈕
 local SaveButton = Instance.new("TextButton")
 SaveButton.Size = UDim2.new(0, 250, 0, 35)
 SaveButton.Position = UDim2.new(0.5, -125, 0, 165)
@@ -110,30 +123,28 @@ local BtnCorner = Instance.new("UICorner")
 BtnCorner.CornerRadius = UDim.new(0, 5)
 BtnCorner.Parent = SaveButton
 
--- 繪製視覺 FOV 圈圈
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Thickness = 1
-FOVCircle.Color = Color3.fromRGB(0, 255, 136)
-FOVCircle.Radius = Config.FOV
-FOVCircle.Filled = false
-FOVCircle.Visible = false
 
--- === 💾 2. 按鍵應用邏輯 ===
+-- === 💾 2. 介面設定套用邏輯 ===
 SaveButton.MouseButton1Click:Connect(function()
     local newToggle = string.upper(string.gsub(ToggleInput.Text, "%s+", ""))
     local newAim = string.upper(string.gsub(AimInput.Text, "%s+", ""))
     
-    -- 驗證輸入是否為有效按鍵字元
     if #newToggle == 1 and #newAim == 1 then
         Config.ToggleKey = newToggle
         Config.AimKey = newAim
-        SaveButton.Text = "✅ 設定已成功套用！"
+        SaveButton.Text = "✅ 設定儲存成功！"
         SaveButton.BackgroundColor3 = Color3.fromRGB(76, 175, 80)
         task.wait(1)
         SaveButton.Text = "應用並儲存按鍵設定"
         SaveButton.BackgroundColor3 = Color3.fromRGB(0, 150, 136)
+        
+        if AimbotEnabled then
+            StatusLabel.Text = "系統狀態: 已開啟 (按住 " .. Config.AimKey .. " 鎖頭)"
+        else
+            StatusLabel.Text = "系統狀態: 關閉 (請按 " .. Config.ToggleKey .. " 開啟)"
+        end
     else
-        SaveButton.Text = "❌ 錯誤：請輸入單個大寫英文字母"
+        SaveButton.Text = "❌ 請輸入單個英文字母"
         SaveButton.BackgroundColor3 = Color3.fromRGB(244, 67, 54)
         task.wait(1.5)
         SaveButton.Text = "應用並儲存按鍵設定"
@@ -141,7 +152,8 @@ SaveButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- === 🔍 3. 核心鎖頭與動態監聽邏輯 ===
+
+-- === 🔍 3. 核心鎖頭吸附邏輯 ===
 local function getClosestPlayer()
     local closestPlayer = nil
     local shortestDistance = math.huge
@@ -162,46 +174,39 @@ local function getClosestPlayer()
     return closestPlayer
 end
 
--- 動態鍵盤監聽
+-- 監聽快捷按鍵
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    
-    -- 根據目前的 Config.ToggleKey 檢查是否觸發開關
     if input.KeyCode.Name == Config.ToggleKey then
         AimbotEnabled = not AimbotEnabled
         if AimbotEnabled then
             StatusLabel.Text = "系統狀態: 已開啟 (按住 " .. Config.AimKey .. " 鎖頭)"
             StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-            FOVCircle.Visible = true
         else
             StatusLabel.Text = "系統狀態: 關閉 (請按 " .. Config.ToggleKey .. " 開啟)"
             StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-            FOVCircle.Visible = false
             TargetPlayer = nil
         end
     end
 end)
 
--- 每幀刷新追蹤
+-- 每幀刷新視角吸附
 RunService.RenderStepped:Connect(function()
-    if FOVCircle.Visible then
-        FOVCircle.Position = UserInputService:GetMouseLocation()
-    end
-
     if not AimbotEnabled then return end
 
-    -- 根據目前的 Config.AimKey 檢查玩家是否正按住鎖定鍵
-    if UserInputService:IsKeyDown(Enum.KeyCode[Config.AimKey]) then
-        if not TargetPlayer or not TargetPlayer.Character or not TargetPlayer.Character:FindFirstChild("Head") or TargetPlayer.Character.Humanoid.Health <= 0 then
-            TargetPlayer = getClosestPlayer()
-        end
+    pcall(function()
+        if UserInputService:IsKeyDown(Enum.KeyCode[Config.AimKey]) then
+            if not TargetPlayer or not TargetPlayer.Character or not TargetPlayer.Character:FindFirstChild("Head") or TargetPlayer.Character.Humanoid.Health <= 0 then
+                TargetPlayer = getClosestPlayer()
+            end
 
-        if TargetPlayer and TargetPlayer.Character and TargetPlayer.Character:FindFirstChild("Head") then
-            Camera.CFrame = CFrame.new(Camera.CFrame.Position, TargetPlayer.Character.Head.Position)
+            if TargetPlayer and TargetPlayer.Character and TargetPlayer.Character:FindFirstChild("Head") then
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, TargetPlayer.Character.Head.Position)
+            end
+        else
+            TargetPlayer = nil
         end
-    else
-        TargetPlayer = nil
-    end
+    end)
 end)
         end
     end)
