@@ -1,123 +1,16 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
-local function getSafeParent()
-    local success, res = pcall(function()
-        return (gethui and gethui()) or (game:GetService("CoreGui"):FindFirstChild("RobloxGui"))
-    end)
-    if success and res then return res end
-    return LocalPlayer:WaitForChild("PlayerGui", 15)
-end
+-- === ⚙️ 初始預設參數 ===
+local CurrentSize = 15          -- 預設初始大小
+local CurrentTransparency = 0.6 -- 預設初始透明度 (0.6 為半透明紅塊)
 
-local TargetParent = getSafeParent()
-local Settings = { Size = 15, Transparency = 0.6 }
-local ExtenderEnabled = true
-
-if TargetParent:FindFirstChild("Xeno_Hitbox_Panel_Fixed") then
-    TargetParent["Xeno_Hitbox_Panel_Fixed"]:Destroy()
-end
-
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "Xeno_Hitbox_Panel_Fixed"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = TargetParent
-
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 260, 0, 180)
-MainFrame.Position = UDim2.new(0.05, 0, 0.35, 0) 
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-MainFrame.Active = true
-MainFrame.Draggable = true 
-MainFrame.Parent = ScreenGui
-
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 8)
-UICorner.Parent = MainFrame
-
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 35)
-Title.Text = "📐 Hitbox Panel"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextSize = 14
-Title.Font = Enum.Font.SourceSansBold
-Title.BackgroundTransparency = 1
-Title.Parent = MainFrame
-
-local LabelSize = Instance.new("TextLabel")
-LabelSize.Size = UDim2.new(0, 120, 0, 30)
-LabelSize.Position = UDim2.new(0, 15, 0, 50)
-LabelSize.Text = "Size (2-100):"
-LabelSize.TextColor3 = Color3.fromRGB(200, 200, 200)
-LabelSize.TextSize = 14
-LabelSize.TextXAlignment = Enum.TextXAlignment.Left
-LabelSize.BackgroundTransparency = 1
-LabelSize.Parent = MainFrame
-
-local SizeInput = Instance.new("TextBox")
-SizeInput.Size = UDim2.new(0, 90, 0, 25)
-SizeInput.Position = UDim2.new(0, 150, 0, 52)
-SizeInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-SizeInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-SizeInput.Text = tostring(Settings.Size)
-SizeInput.TextSize = 14
-SizeInput.Font = Enum.Font.SourceSansBold
-SizeInput.Parent = MainFrame
-
-local LabelTrans = Instance.new("TextLabel")
-LabelTrans.Size = UDim2.new(0, 120, 0, 30)
-LabelTrans.Position = UDim2.new(0, 15, 0, 90)
-LabelTrans.Text = "Transparency (0-1):"
-LabelTrans.TextColor3 = Color3.fromRGB(200, 200, 200)
-LabelTrans.TextSize = 14
-LabelTrans.TextXAlignment = Enum.TextXAlignment.Left
-LabelTrans.BackgroundTransparency = 1
-LabelTrans.Parent = MainFrame
-
-local TransInput = Instance.new("TextBox")
-TransInput.Size = UDim2.new(0, 90, 0, 25)
-TransInput.Position = UDim2.new(0, 150, 0, 92)
-TransInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-TransInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-TransInput.Text = tostring(Settings.Transparency)
-TransInput.TextSize = 14
-TransInput.Font = Enum.Font.SourceSansBold
-TransInput.Parent = MainFrame
-
-local ApplyButton = Instance.new("TextButton")
-ApplyButton.Size = UDim2.new(0, 230, 0, 35)
-ApplyButton.Position = UDim2.new(0.5, -115, 0, 132)
-ApplyButton.BackgroundColor3 = Color3.fromRGB(0, 150, 136)
-ApplyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ApplyButton.Text = "Update Hitbox"
-ApplyButton.TextSize = 14
-ApplyButton.Font = Enum.Font.SourceSansBold
-ApplyButton.Parent = MainFrame
-
-local BtnCorner = Instance.new("UICorner")
-BtnCorner.CornerRadius = UDim.new(0, 5)
-BtnCorner.Parent = ApplyButton
-
-ApplyButton.MouseButton1Click:Connect(function()
-    local newSize = tonumber(SizeInput.Text)
-    local newTrans = tonumber(TransInput.Text)
-    
-    if newSize and newSize >= 2 and newSize <= 100 and newTrans and newTrans >= 0 and newTrans <= 1 then
-        Settings.Size = newSize
-        Settings.Transparency = newTrans
-        ApplyButton.Text = "SUCCESS"
-        ApplyButton.BackgroundColor3 = Color3.fromRGB(76, 175, 80)
-        task.wait(0.8)
-        ApplyButton.Text = "Update Hitbox"
-        ApplyButton.BackgroundColor3 = Color3.fromRGB(0, 150, 136)
-    else
-        ApplyButton.Text = "ERROR"
-        ApplyButton.BackgroundColor3 = Color3.fromRGB(244, 67, 54)
-        task.wait(1.2)
-        ApplyButton.Text = "Update Hitbox"
-        ApplyButton.BackgroundColor3 = Color3.fromRGB(0, 150, 136)
-    end
-end)
+-- === ⌨️ 調整按鍵配置 ===
+local KEY_SIZE_UP = Enum.KeyCode.RightBrackets   -- 按鍵盤 [ ] 的 ] 鍵：方塊變大 (+2)
+local KEY_SIZE_DOWN = Enum.KeyCode.LeftBrackets  -- 按鍵盤 [ ] 的 [ 鍵：方塊變小 (-2)
+local KEY_TOGGLE_HIDE = Enum.KeyCode.BackSlash   -- 按鍵盤 \ 鍵（Enter上方）：切換完全隱形/顯形
 
 local function applyHitbox(player)
     if player == LocalPlayer then return end
@@ -127,8 +20,8 @@ local function applyHitbox(player)
             local root = character:FindFirstChild("HumanoidRootPart")
             local humanoid = character:FindFirstChildOfClass("Humanoid")
             if root and humanoid and humanoid.Health > 0 then
-                root.Size = Vector3.new(Settings.Size, Settings.Size, Settings.Size)
-                root.Transparency = Settings.Transparency
+                root.Size = Vector3.new(CurrentSize, CurrentSize, CurrentSize)
+                root.Transparency = CurrentTransparency
                 root.Color = Color3.fromRGB(255, 0, 0)
                 root.Material = Enum.Material.Neon
                 root.CanCollide = false
@@ -137,10 +30,35 @@ local function applyHitbox(player)
     end)
 end
 
+-- 監聽鍵盤按鍵（免UI動態控制）
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    -- 調整大小
+    if input.KeyCode == KEY_SIZE_UP then
+        CurrentSize = math.clamp(CurrentSize + 2, 2, 100)
+        print("Hitbox Size Updated: " .. tostring(CurrentSize))
+    elseif input.KeyCode == KEY_SIZE_DOWN then
+        CurrentSize = math.clamp(CurrentSize - 2, 2, 100)
+        print("Hitbox Size Updated: " .. tostring(CurrentSize))
+        
+    -- 調整透明度（切換隱形或顯形）
+    elseif input.KeyCode == KEY_TOGGLE_HIDE then
+        if CurrentTransparency == 0 then
+            CurrentTransparency = 0.6 -- 恢復成看得到紅框
+        else
+            CurrentTransparency = 0 -- 變成 0 完全隱形方塊（但依然是大方塊）
+        end
+        print("Hitbox Transparency Updated: " .. tostring(CurrentTransparency))
+    end
+end)
+
+-- 背景不斷同步刷新
 RunService.RenderStepped:Connect(function()
-    if not ExtenderEnabled then return end
     for _, player in ipairs(Players:GetPlayers()) do
         applyHitbox(player)
+    end
+end)
     end
 end)
     end
